@@ -65,9 +65,54 @@ bool isUnsigned(const std::wstring& filepath) {
 
     pCertInfo = (PCERT_INFO)LocalAlloc(LPTR, cbCertInfo);
     if (pCertInfo == NULL) {
-        std::cerr << "Error allocating memory for certificate info for file: " << filepath << std::endl;
-        fResult = true; // Assume unsigned if can't allocate memory for certificate info
-        goto cleanup;
+    std::cerr << "Error allocating memory for certificate info for file: " << filepath << std::endl;
+    fResult = true; // Assume unsigned if can't allocate memory for certificate info
+    goto cleanup;
+}
+
+// Check if the file is signed
+fResult = !!(pCertInfo->dwCertEncodingType & X509_ASN_ENCODING) &&
+          (CertVerifySubjectCertificateContext(pCertContext, NULL, NULL) == TRUE);
+
+cleanup:
+// Clean up resources
+if (hFile != INVALID_HANDLE_VALUE) {
+    CloseHandle(hFile);
+}
+if (hFileMapping != NULL) {
+    CloseHandle(hFileMapping);
+}
+if (pCertContext != NULL) {
+    CertFreeCertificateContext(pCertContext);
+}
+if (pCertInfo != NULL) {
+    LocalFree(pCertInfo);
+}
+
+return fResult;
+cleanup:
+    if (pCertContext) CertFreeCertificateContext(pCertContext);
+    if (hFile) CloseHandle(hFile);
+    return fResult;
+}
+
+int main(int argc, char* argv[])
+{
+    if (argc != 2) {
+        std::cout << "Usage: " << argv[0] << " <filepath>" << std::endl;
+        return 1;
     }
 
-    if (CryptMsgGetParam(hMsg, CMSG_SIGNER_CERT_INFO
+    const char* filepath = argv[1];
+
+    bool isSigned = IsFileDigitallySigned(filepath);
+
+    if (isSigned) {
+        std::cout << "File " << filepath << " is digitally signed." << std::endl;
+    }
+    else {
+        std::cout << "File " << filepath << " is not digitally signed." << std::endl;
+    }
+
+    return 0;
+}
